@@ -44,8 +44,8 @@ A modern, interactive Tic Tac Toe game built with Next.js, TypeScript, and Tailw
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/Burudpratham03/ai-tic-tac-toe.git
-   cd ai-tic-tac-toe
+   git clone https://github.com/Burudpratham03/ai_tic_tac_toe.git
+   cd ai_tic_tac_toe
    ```
 
 2. **Install dependencies**
@@ -64,7 +64,7 @@ A modern, interactive Tic Tac Toe game built with Next.js, TypeScript, and Tailw
 ## 🎨 Project Structure
 
 ```
-ai-tic-tac-toe/
+ai_tic_tac_toe/
 ├── app/                    # Next.js app directory
 │   ├── globals.css        # Global styles
 │   ├── layout.tsx         # Root layout
