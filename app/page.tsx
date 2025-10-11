@@ -1,100 +1,138 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { GameBoard } from "@/components/game-board"
 import { GameStats } from "@/components/game-stats"
-import { type Board, checkWinner, isBoardFull, getBestMove } from "@/lib/minimax"
+import { type Board, checkWinner, isBoardFull } from "@/lib/minimax"
 import { Brain, RotateCcw, Trophy } from "lucide-react"
 
 export default function TicTacToe() {
-  const [board, setBoard] = useState<Board>(Array(9).fill(null))
-  const [isPlayerTurn, setIsPlayerTurn] = useState(true)
-  const [gameStatus, setGameStatus] = useState<"playing" | "won" | "lost" | "draw">("playing")
-  const [isThinking, setIsThinking] = useState(false)
-  const [stats, setStats] = useState({ wins: 0, losses: 0, draws: 0 })
 
-  const resetGame = useCallback(() => {
+  // Two player state
+  const [board, setBoard] = useState<Board>(Array(9).fill(null))
+  const [currentPlayer, setCurrentPlayer] = useState<"X" | "O">("X")
+  const [gameStatus, setGameStatus] = useState<"playing" | "won" | "draw">("playing")
+  const [round, setRound] = useState(1)
+  const [maxRounds, setMaxRounds] = useState(5)
+  const [roundWins, setRoundWins] = useState<{ X: number; O: number }>({ X: 0, O: 0 })
+  const [playerAssignments, setPlayerAssignments] = useState<{ X: string; O: string }>({ X: "Player 1", O: "Player 2" })
+  const [isGoldenRound, setIsGoldenRound] = useState(false)
+  const [matchWinner, setMatchWinner] = useState<string | null>(null)
+
+  // Reset for a new match
+  const resetMatch = useCallback(() => {
     setBoard(Array(9).fill(null))
-    setIsPlayerTurn(true)
+    setCurrentPlayer("X")
     setGameStatus("playing")
-    setIsThinking(false)
+    setRound(1)
+    setRoundWins({ X: 0, O: 0 })
+    setIsGoldenRound(false)
+    setMatchWinner(null)
+    // Alternate assignments for next match
+    setPlayerAssignments((prev) => ({ X: prev.O, O: prev.X }))
   }, [])
 
+  // Handle a move for the current player
   const makePlayerMove = useCallback(
     (index: number) => {
-      if (board[index] || gameStatus !== "playing" || !isPlayerTurn || isThinking) {
+      if (board[index] || gameStatus !== "playing" || matchWinner) {
         return
       }
-
       const newBoard = [...board]
-      newBoard[index] = "X"
+      newBoard[index] = currentPlayer
       setBoard(newBoard)
-      setIsPlayerTurn(false)
 
-      // Check if player won
       const winner = checkWinner(newBoard)
-      if (winner === "X") {
+      if (winner) {
         setGameStatus("won")
-        setStats((prev) => ({ ...prev, wins: prev.wins + 1 }))
+        setRoundWins((prev) => ({ ...prev, [winner]: prev[winner] + 1 }))
+        // Check for match win after a short delay
+        setTimeout(() => {
+          let nextRound = round + 1
+          let nextIsGolden = isGoldenRound
+          let nextMatchWinner = null
+          let nextMaxRounds = maxRounds
+          let nextRoundWins = { ...roundWins, [winner]: roundWins[winner] + 1 }
+          if (!isGoldenRound) {
+            // Normal rounds
+            if (nextRound > maxRounds) {
+              if (nextRoundWins.X > nextRoundWins.O) nextMatchWinner = playerAssignments.X
+              else if (nextRoundWins.O > nextRoundWins.X) nextMatchWinner = playerAssignments.O
+              else {
+                nextIsGolden = true
+                nextMaxRounds = nextRound // golden round starts
+              }
+            }
+          } else {
+            // Golden round: whoever wins, wins match
+            nextMatchWinner = playerAssignments[winner]
+          }
+          setBoard(Array(9).fill(null))
+          setCurrentPlayer(nextRound % 2 === 1 ? "X" : "O")
+          setGameStatus("playing")
+          setRound(nextRound)
+          setIsGoldenRound(nextIsGolden)
+          setMatchWinner(nextMatchWinner)
+          setMaxRounds(nextMaxRounds)
+          setRoundWins(nextRoundWins)
+        }, 1000)
         return
       }
-
-      // Check for draw
       if (isBoardFull(newBoard)) {
         setGameStatus("draw")
-        setStats((prev) => ({ ...prev, draws: prev.draws + 1 }))
+        setTimeout(() => {
+          let nextRound = round + 1
+          let nextIsGolden = isGoldenRound
+          let nextMatchWinner = null
+          let nextMaxRounds = maxRounds
+          if (!isGoldenRound) {
+            if (nextRound > maxRounds) {
+              if (roundWins.X > roundWins.O) nextMatchWinner = playerAssignments.X
+              else if (roundWins.O > roundWins.X) nextMatchWinner = playerAssignments.O
+              else {
+                nextIsGolden = true
+                nextMaxRounds = nextRound
+              }
+            }
+          }
+          setBoard(Array(9).fill(null))
+          setCurrentPlayer(nextRound % 2 === 1 ? "X" : "O")
+          setGameStatus("playing")
+          setRound(nextRound)
+          setIsGoldenRound(nextIsGolden)
+          setMatchWinner(nextMatchWinner)
+          setMaxRounds(nextMaxRounds)
+        }, 1000)
         return
       }
+      setCurrentPlayer(currentPlayer === "X" ? "O" : "X")
     },
-    [board, gameStatus, isPlayerTurn, isThinking],
+    [board, gameStatus, currentPlayer, matchWinner, round, isGoldenRound, maxRounds, roundWins, playerAssignments],
   )
 
-  // AI move effect
-  useEffect(() => {
-    if (!isPlayerTurn && gameStatus === "playing") {
-      setIsThinking(true)
+  // No AI effect needed for two-player mode
 
-      // Add a small delay to show thinking state
-      const timer = setTimeout(() => {
-        const aiMove = getBestMove([...board])
-        if (aiMove !== -1) {
-          const newBoard = [...board]
-          newBoard[aiMove] = "O"
-          setBoard(newBoard)
-
-          // Check if AI won
-          const winner = checkWinner(newBoard)
-          if (winner === "O") {
-            setGameStatus("lost")
-            setStats((prev) => ({ ...prev, losses: prev.losses + 1 }))
-          } else if (isBoardFull(newBoard)) {
-            setGameStatus("draw")
-            setStats((prev) => ({ ...prev, draws: prev.draws + 1 }))
-          }
-        }
-
-        setIsPlayerTurn(true)
-        setIsThinking(false)
-      }, 500)
-
-      return () => clearTimeout(timer)
-    }
-  }, [isPlayerTurn, gameStatus, board])
 
   const getStatusMessage = () => {
-    if (isThinking) return "AI is thinking..."
-    if (gameStatus === "won") return "🎉 You won!"
-    if (gameStatus === "lost") return "🤖 AI wins!"
-    if (gameStatus === "draw") return "🤝 It's a draw!"
-    return isPlayerTurn ? "Your turn" : "AI's turn"
+    if (matchWinner) return (
+      <span className="flex items-center justify-center gap-2">
+        <span className="text-2xl">🏆</span>
+        <span className="font-bold text-lg">{matchWinner} wins the match!</span>
+        <span className="animate-dance text-3xl">💃</span>
+      </span>
+    )
+    if (gameStatus === "won") return `🎉 ${playerAssignments[currentPlayer]} wins the round!`
+    if (gameStatus === "draw") return "🤝 Round draw!"
+    if (isGoldenRound) return `Golden Round: ${playerAssignments[currentPlayer]}'s turn (${currentPlayer})`
+    return `Round ${round} - ${playerAssignments[currentPlayer]}'s turn (${currentPlayer})`
   }
 
   const getStatusColor = () => {
+    if (matchWinner) return "bg-green-100 text-green-800"
     if (gameStatus === "won") return "bg-green-100 text-green-800"
-    if (gameStatus === "lost") return "bg-red-100 text-red-800"
     if (gameStatus === "draw") return "bg-yellow-100 text-yellow-800"
     return "bg-blue-100 text-blue-800"
   }
@@ -108,13 +146,28 @@ export default function TicTacToe() {
             <Brain className="h-8 w-8 text-indigo-600" />
             <h1 className="text-3xl font-bold text-gray-900">AI Tic Tac Toe</h1>
           </div>
-          <p className="text-gray-600">Challenge the unbeatable AI</p>
+          <p className="text-gray-600">Two Player Mode: Best of 5 Rounds</p>
         </div>
 
         {/* Game Status */}
         <div className="text-center">
           <Badge className={`text-lg px-4 py-2 ${getStatusColor()}`}>{getStatusMessage()}</Badge>
         </div>
+        {/* Dancing animation keyframes */}
+        <style jsx global>{`
+        @keyframes dance {
+          0% { transform: translateY(0) rotate(-10deg); }
+          20% { transform: translateY(-10px) rotate(10deg); }
+          40% { transform: translateY(0) rotate(-10deg); }
+          60% { transform: translateY(-10px) rotate(10deg); }
+          80% { transform: translateY(0) rotate(-10deg); }
+          100% { transform: translateY(0) rotate(0deg); }
+        }
+        .animate-dance {
+          display: inline-block;
+          animation: dance 1s infinite;
+        }
+      `}</style>
 
         {/* Game Board */}
         <Card>
@@ -122,16 +175,16 @@ export default function TicTacToe() {
             <GameBoard
               board={board}
               onCellClick={makePlayerMove}
-              disabled={!isPlayerTurn || gameStatus !== "playing" || isThinking}
+              disabled={!!matchWinner || gameStatus !== "playing"}
             />
           </CardContent>
         </Card>
 
         {/* Game Controls */}
         <div className="flex gap-3">
-          <Button onClick={resetGame} variant="outline" className="flex-1 bg-transparent" disabled={isThinking}>
+          <Button onClick={resetMatch} variant="outline" className="flex-1 bg-transparent">
             <RotateCcw className="h-4 w-4 mr-2" />
-            New Game
+            New Match
           </Button>
         </div>
 
@@ -140,11 +193,20 @@ export default function TicTacToe() {
           <CardHeader>
             <CardTitle className="text-center flex items-center justify-center gap-2">
               <Trophy className="h-5 w-5" />
-              Game Statistics
+              Round Wins
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <GameStats wins={stats.wins} losses={stats.losses} draws={stats.draws} />
+            <div className="flex justify-center gap-8">
+              <div className="text-center">
+                <div className="text-lg font-bold text-blue-600">{playerAssignments.X}</div>
+                <div className="text-2xl font-bold text-blue-600">{roundWins.X}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-red-600">{playerAssignments.O}</div>
+                <div className="text-2xl font-bold text-red-600">{roundWins.O}</div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -155,14 +217,14 @@ export default function TicTacToe() {
               <div className="flex items-center justify-center gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl text-blue-600">X</span>
-                  <span className="text-gray-600">You</span>
+                  <span className="text-gray-600">{playerAssignments.X}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-2xl text-red-600">O</span>
-                  <span className="text-gray-600">AI</span>
+                  <span className="text-gray-600">{playerAssignments.O}</span>
                 </div>
               </div>
-              <p className="text-xs text-gray-500">The AI uses the Minimax algorithm and is unbeatable!</p>
+              <p className="text-xs text-gray-500">Players alternate X and O each match. If tied after 5 rounds, golden round(s) decide the winner.</p>
             </div>
           </CardContent>
         </Card>
