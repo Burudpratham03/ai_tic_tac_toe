@@ -1,7 +1,10 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, FC } from "react";
-import { cn } from "@/lib/utils"; // Assumes you have a utility for class names
+
+// --- UTILITY FUNCTIONS ---
+// Helper for conditional class names, typically from a library like clsx
+const cn = (...classes: (string | boolean | undefined | null)[]) => classes.filter(Boolean).join(' ');
 
 // --- TYPE DEFINITIONS ---
 type Player = 'X' | 'O';
@@ -15,7 +18,7 @@ interface GameState {
   difficulty?: Difficulty;
 }
 
-// --- UTILITY FUNCTIONS ---
+// --- CORE GAME LOGIC ---
 const checkWinner = (board: Board): WinResult => {
   const lines = [
     [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
@@ -36,38 +39,34 @@ const getAIMove = (board: Board, difficulty: Difficulty): number => {
   const availableMoves = board.map((cell, i) => cell === null ? i : null).filter(i => i !== null) as number[];
   if (availableMoves.length === 0) return -1;
 
-  // Hard or Medium: Check for winning or blocking moves
   if (difficulty === 'hard' || difficulty === 'medium') {
     // AI win check ('O')
     for (const move of availableMoves) {
-      const newBoard = [...board];
-      newBoard[move] = 'O';
-      if (checkWinner(newBoard) === 'O') return move;
+      const tempBoard = [...board];
+      tempBoard[move] = 'O';
+      if (checkWinner(tempBoard) === 'O') return move;
     }
     // Player block check ('X')
     for (const move of availableMoves) {
-      const newBoard = [...board];
-      newBoard[move] = 'X';
-      if (checkWinner(newBoard) === 'X') return move;
+      const tempBoard = [...board];
+      tempBoard[move] = 'X';
+      if (checkWinner(tempBoard) === 'X') return move;
     }
   }
 
-  // Medium: Falls back to random if no critical move
   if (difficulty === 'medium') {
     return availableMoves[Math.floor(Math.random() * availableMoves.length)];
   }
 
-  // Easy: Purely random move
   if (difficulty === 'easy') {
     return availableMoves[Math.floor(Math.random() * availableMoves.length)];
   }
 
-  // Hard (fallback to center or random if no immediate win/block)
   if (availableMoves.includes(4)) return 4;
   return availableMoves[Math.floor(Math.random() * availableMoves.length)];
 };
 
-// --- UI COMPONENTS ---
+// --- SHARED UI COMPONENTS ---
 const Button: FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'destructive' | 'outline' }> = ({ className, children, ...props }) => (
   <button
     className={cn(
@@ -104,46 +103,6 @@ const Input: FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => (
   />
 );
 
-export default function Home() {
-  const [gameState, setGameState] = useState<GameState>({ mode: 'menu' });
-  const [scores, setScores] = useState<Record<Player, number>>({ X: 0, O: 0 });
-  const [gamesPlayed, setGamesPlayed] = useState(0);
-
-  const handleModeSelect = (mode: GameMode) => {
-    setGameState({ mode });
-  };
-
-  const handleDifficultySelect = (difficulty: Difficulty) => {
-    setGameState({ mode: 'single_player', difficulty });
-  };
-
-  const handleBackToMenu = () => {
-    setGameState({ mode: 'menu' });
-    setScores({ X: 0, O: 0 });
-    setGamesPlayed(0);
-  };
-
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      {gameState.mode === 'menu' && (
-        <Menu onModeSelect={handleModeSelect} />
-      )}
-      {gameState.mode === 'difficulty_select' && (
-        <DifficultySelect onSelect={handleDifficultySelect} onBack={handleBackToMenu} />
-      )}
-      {gameState.mode === 'single_player' && gameState.difficulty && (
-        <SinglePlayerGame onBack={handleBackToMenu} difficulty={gameState.difficulty} />
-      )}
-      {gameState.mode === 'two_player' && (
-        <TwoPlayerGame onBack={handleBackToMenu} />
-      )}
-      {gameState.mode === 'tournament' && (
-        <TournamentGame onBack={handleBackToMenu} />
-      )}
-    </main>
-  );
-}
-
 // --- MENU & SELECTION COMPONENTS ---
 const Menu: FC<{ onModeSelect: (mode: GameMode) => void }> = ({ onModeSelect }) => (
   <div className="flex flex-col space-y-4 w-64 text-center">
@@ -163,7 +122,6 @@ const DifficultySelect: FC<{ onSelect: (difficulty: Difficulty) => void; onBack:
     <Button onClick={onBack} variant="outline">Back to Menu</Button>
   </div>
 );
-
 
 // --- GAME MODE COMPONENTS ---
 const SinglePlayerGame: FC<{ onBack: () => void; difficulty: Difficulty }> = ({ onBack, difficulty }) => {
@@ -233,9 +191,7 @@ const TwoPlayerGame: FC<{ onBack: () => void }> = ({ onBack }) => {
 
   const handleNameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (playerNames.X && playerNames.O) {
-      setIsNaming(false);
-    }
+    if (playerNames.X && playerNames.O) setIsNaming(false);
   }
 
   const handleMove = useCallback((index: number) => {
@@ -247,29 +203,33 @@ const TwoPlayerGame: FC<{ onBack: () => void }> = ({ onBack }) => {
     const result = checkWinner(newBoard);
     if (result) {
       setRoundWinner(result);
-      let finalMatchWinner = null;
+      let currentMatchWinner = matchWinner;
+      let newScores = scores;
+
       if (result !== 'draw') {
-        const newScores = { ...scores, [result]: scores[result] + 1 };
+        newScores = { ...scores, [result]: scores[result] + 1 };
         setScores(newScores);
         if (newScores[result] >= 3) {
           setMatchWinner(result);
-          finalMatchWinner = result;
+          currentMatchWinner = result;
         }
       }
+
       const newGamesPlayed = gamesPlayed + 1;
       setGamesPlayed(newGamesPlayed);
-      if (newGamesPlayed >= 5 && !finalMatchWinner) {
-        const finalWinner = scores.X > scores.O ? 'X' : scores.O > scores.X ? 'O' : null;
+
+      if (newGamesPlayed >= 5 && !currentMatchWinner) {
+        const finalWinner = newScores.X > newScores.O ? 'X' : newScores.O > newScores.X ? 'O' : null;
         if (finalWinner) setMatchWinner(finalWinner);
       }
 
       setTimeout(() => {
-        if (!finalMatchWinner && newGamesPlayed < 5) {
+        if (!currentMatchWinner && newGamesPlayed < 5) {
           setBoard(Array(9).fill(null));
           setRoundWinner(null);
-          const nextPlayer = roundStarter === 'X' ? 'O' : 'X';
-          setCurrentPlayer(nextPlayer);
-          setRoundStarter(nextPlayer);
+          const nextStarter = roundStarter === 'X' ? 'O' : 'X';
+          setCurrentPlayer(nextStarter);
+          setRoundStarter(nextStarter);
         }
       }, 2000);
     } else {
@@ -287,20 +247,8 @@ const TwoPlayerGame: FC<{ onBack: () => void }> = ({ onBack }) => {
     return (
       <form onSubmit={handleNameSubmit} className="flex flex-col items-center space-y-4 w-full">
         <h2 className="text-3xl font-bold text-gray-800">Enter Player Names</h2>
-        <Input
-          type="text"
-          placeholder="Player X Name"
-          value={playerNames.X}
-          onChange={(e) => setPlayerNames(p => ({ ...p, X: e.target.value }))}
-          required
-        />
-        <Input
-          type="text"
-          placeholder="Player O Name"
-          value={playerNames.O}
-          onChange={(e) => setPlayerNames(p => ({ ...p, O: e.target.value }))}
-          required
-        />
+        <Input type="text" placeholder="Player X Name" value={playerNames.X} onChange={(e) => setPlayerNames(p => ({ ...p, X: e.target.value }))} required />
+        <Input type="text" placeholder="Player O Name" value={playerNames.O} onChange={(e) => setPlayerNames(p => ({ ...p, O: e.target.value }))} required />
         <Button type="submit">Start Game</Button>
         <Button onClick={onBack} variant="outline">Back to Menu</Button>
       </form>
@@ -311,7 +259,7 @@ const TwoPlayerGame: FC<{ onBack: () => void }> = ({ onBack }) => {
     <div className="flex flex-col items-center space-y-4">
       <h2 className="text-3xl font-bold text-gray-800">Two Player (Best of 5)</h2>
       <p className="text-xl font-semibold">Score: {playerNames.X} - {scores.X} | {playerNames.O} - {scores.O}</p>
-      <p className="text-lg text-gray-600">Game {gamesPlayed + 1 > 5 ? 5 : gamesPlayed + 1} of 5</p>
+      <p className="text-lg text-gray-600">Game {Math.min(gamesPlayed + 1, 5)} of 5</p>
       <div className="grid grid-cols-3 gap-2">
         {board.map((cell, i) => (
           <Cell key={i} value={cell} onClick={() => handleMove(i)} disabled={!!cell || !!roundWinner || !!matchWinner} />
@@ -331,11 +279,11 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
 
   const [board, setBoard] = useState<Board>(Array(9).fill(null));
   const [currentPlayer, setCurrentPlayer] = useState<Player>('X');
-  const [winner, setWinner] = useState<WinResult>(null);
   const [statusMessage, setStatusMessage] = useState("");
 
   const [isHumanEliminated, setIsHumanEliminated] = useState(false);
   const [tournamentWinner, setTournamentWinner] = useState<string | null>(null);
+  const [isRematch, setIsRematch] = useState(false);
 
   useEffect(() => {
     const initialPlayers = ['Human', ...Array.from({ length: 15 }, (_, i) => `AI ${i + 1}`)];
@@ -348,8 +296,7 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
     const newNextRoundPlayers = [...nextRoundPlayers, matchWinnerName];
     setNextRoundPlayers(newNextRoundPlayers);
 
-    if (newNextRoundPlayers.length * 2 === players.length) {
-      // End of round
+    if (newNextRoundPlayers.length * 2 === players.length || newNextRoundPlayers.length === players.length) { // End of round
       if (newNextRoundPlayers.length === 1) {
         setTournamentWinner(newNextRoundPlayers[0]);
         return;
@@ -359,21 +306,15 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
       setMatchIndex(0);
       setNextRoundPlayers([]);
     } else {
-      // Next match in the same round
       setMatchIndex(m => m + 1);
     }
 
-    // Reset for next match
     setBoard(Array(9).fill(null));
     setCurrentPlayer('X');
-    setWinner(null);
+  }, [players.length, nextRoundPlayers]);
 
-  }, [players, nextRoundPlayers]);
-
-
-  // Effect for handling game logic (AI moves and simulations)
   useEffect(() => {
-    if (players.length === 0 || tournamentWinner) return;
+    if (players.length === 0 || tournamentWinner || isHumanEliminated) return;
 
     const player1 = players[matchIndex * 2];
     const player2 = players[matchIndex * 2 + 1];
@@ -382,8 +323,19 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
 
     const result = checkWinner(board);
     if (result) {
-      setWinner(result);
-      const winnerName = result === 'draw' ? player2 : (result === 'X' ? player1 : player2);
+      // FIX: Added rematch logic for draws in tournament
+      if (result === 'draw') {
+        setStatusMessage("Draw! Rematching...");
+        setTimeout(() => {
+          setBoard(Array(9).fill(null));
+          setCurrentPlayer('X');
+          setIsRematch(true); // Triggers re-render to clear message
+        }, 1500);
+        return;
+      }
+
+      const winnerName = (result === 'X') ? player1 : player2;
+      setStatusMessage(`${winnerName} wins!`);
       if (isHumanInMatch && winnerName !== 'Human') {
         setIsHumanEliminated(true);
       } else {
@@ -392,10 +344,13 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
       return;
     }
 
+    setIsRematch(false);
+
     if (isHumanInMatch) {
-      const humanPlayer = players.indexOf('Human') % 2 === 0 ? 'X' : 'O';
+      const humanIsX = player1 === 'Human';
+      const humanPlayer = humanIsX ? 'X' : 'O';
       setStatusMessage(currentPlayer === humanPlayer ? "Your Turn" : "AI's Turn");
-      if (currentPlayer !== humanPlayer && !winner) {
+      if (currentPlayer !== humanPlayer) {
         const timer = setTimeout(() => {
           const aiMove = getAIMove(board, difficulty);
           if (aiMove !== -1) {
@@ -408,28 +363,30 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
         return () => clearTimeout(timer);
       }
     } else {
-      // AI vs AI simulation
+      // FIX: Simplified AI vs AI simulation to prevent infinite loops
       setStatusMessage(`Simulating: ${player1} vs ${player2}`);
       const timer = setTimeout(() => {
-        let simBoard = [...board];
+        let simBoard: Board = Array(9).fill(null);
         let simPlayer: Player = 'X';
-        while (checkWinner(simBoard) === null) {
-          const move = getAIMove(simBoard, difficulty);
-          if (move === -1) break; // Draw
+        let winner: WinResult = null;
+        while (winner === null) {
+          const move = getAIMove(simBoard, simPlayer === 'X' ? difficulty : difficulty);
+          if (move === -1) { winner = 'draw'; break; }
           simBoard[move] = simPlayer;
+          winner = checkWinner(simBoard);
           simPlayer = simPlayer === 'X' ? 'O' : 'X';
         }
-        const simResult = checkWinner(simBoard);
-        const winnerName = simResult === 'draw' ? player2 : (simResult === 'X' ? player1 : player2);
+        const winnerName = winner === 'draw' ? player1 : (winner === 'X' ? player1 : player2);
         advanceToNextMatch(winnerName);
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [board, players, matchIndex, round, tournamentWinner, advanceToNextMatch, currentPlayer, winner]);
+  }, [board, players, matchIndex, round, tournamentWinner, advanceToNextMatch, currentPlayer, isHumanEliminated]);
 
   const handleHumanMove = (index: number) => {
-    const humanPlayer = players.indexOf('Human') % 2 === 0 ? 'X' : 'O';
-    if (board[index] || winner || currentPlayer !== humanPlayer) return;
+    const humanIsX = players[matchIndex * 2] === 'Human';
+    const humanPlayer = humanIsX ? 'X' : 'O';
+    if (board[index] || checkWinner(board) || currentPlayer !== humanPlayer) return;
     const newBoard = [...board];
     newBoard[index] = currentPlayer;
     setBoard(newBoard);
@@ -454,7 +411,7 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
     )
   }
 
-  if (players.length === 0) return <p>Loading Tournament...</p>;
+  if (players.length === 0) return <p className="text-xl text-gray-600">Loading Tournament...</p>;
 
   const player1 = players[matchIndex * 2];
   const player2 = players[matchIndex * 2 + 1];
@@ -466,21 +423,20 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
       <h2 className="text-3xl font-bold text-gray-800">Tournament</h2>
       <p className="text-xl font-semibold">{roundNames[round - 1]}</p>
       <p className="text-lg text-gray-600">{player1} (X) vs {player2} (O)</p>
+      <p className="text-xl text-gray-600 h-8">{!isRematch && statusMessage}</p>
       {isHumanInMatch ? (
-        <>
-          <p className="text-xl text-gray-600 h-8">{winner ? (winner === 'draw' ? 'Draw!' : `${winner} wins!`) : statusMessage}</p>
-          <div className="grid grid-cols-3 gap-2">
-            {board.map((cell, i) => (
-              <Cell key={i} value={cell} onClick={() => handleHumanMove(i)} disabled={!!cell || !!winner} />
-            ))}
-          </div>
-        </>
-      ) : <p className="text-xl text-gray-600 h-8">{statusMessage}</p>}
+        <div className="grid grid-cols-3 gap-2">
+          {board.map((cell, i) => (
+            <Cell key={i} value={cell} onClick={() => handleHumanMove(i)} disabled={!!cell || !!checkWinner(board)} />
+          ))}
+        </div>
+      ) : <div className="h-80 flex items-center justify-center"><p>Simulating...</p></div>}
     </div>
   );
 };
 
 // --- MAIN COMPONENT ---
+// FIX: Restructured component to remove duplicate exports and state
 export default function TicTacToe() {
   const [gameState, setGameState] = useState<GameState>({ mode: 'menu' });
 
