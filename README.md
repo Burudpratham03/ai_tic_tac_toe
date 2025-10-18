@@ -2,7 +2,7 @@
 
 A modern, interactive Tic Tac Toe game built with Next.js, TypeScript, and Tailwind CSS. Challenge an unbeatable AI that uses the Minimax algorithm!
 You can test the game here by clicking this link below! 
-(https://ai-tic-tac-toe-sable.vercel.app/)
+([https://ai-tic-tac-toe-sable.vercel.app/](https://ai-tic-tac-3jyy1ufru-burudprathamesh03-gmailcoms-projects.vercel.app/))
 ## 🎮 Features
 
 - **Unbeatable AI**: The AI uses the Minimax algorithm with Alpha-Beta pruning, making it impossible to defeat
