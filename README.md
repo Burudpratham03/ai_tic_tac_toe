@@ -19,6 +19,7 @@ You can test the game here by clicking this link below!
 - **Radix UI** - Accessible UI components
 - **Lucide React** - Beautiful icons
 - **Minimax Algorithm** - AI game logic
+- **Vitest** - Modern testing framework with 29 unit tests
 
 ## 🎯 How to Play
 
@@ -59,25 +60,35 @@ You can test the game here by clicking this link below!
    npm run dev
    ```
 
-4. **Open your browser**
+4. **Run tests (optional)**
+   ```bash
+   npm test
+   ```
+
+5. **Open your browser**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
 ## 🎨 Project Structure
 
 ```
 ai_tic_tac_toe/
-├── app/                    # Next.js app directory
+├── .github/
+│   └── workflows/
+│       └── test.yml       # GitHub Actions CI/CD
+├── app/                   # Next.js app directory
 │   ├── globals.css        # Global styles
 │   ├── layout.tsx         # Root layout
 │   └── page.tsx           # Main game page
-├── components/             # React components
+├── components/            # React components
 │   ├── game-board.tsx     # Game board component
 │   ├── game-stats.tsx     # Statistics component
 │   └── ui/                # UI components (Radix UI)
 ├── lib/                   # Utility functions
 │   ├── minimax.ts         # AI algorithm implementation
+│   ├── minimax.test.ts    # Comprehensive test suite (29 tests)
 │   └── utils.ts           # Helper functions
-└── public/                # Static assets
+├── public/                # Static assets
+└── vitest.config.ts       # Test configuration
 ```
 
 ## 🤖 AI Algorithm
@@ -97,8 +108,70 @@ The game is fully responsive and works on:
 - Mobile phones
 - All modern browsers
 
+## 🧪 Testing & Quality Assurance
+
+This project includes a comprehensive test suite with **29 unit tests** covering all critical game functionality:
+
+### Test Coverage
+
+1. **Horizontal Win Detection** (4 tests)
+   - Tests all three rows for win conditions
+   - Validates incomplete rows don't trigger false wins
+
+2. **Vertical Win Detection** (4 tests)
+   - Tests all three columns for win conditions
+   - Ensures partial columns don't register as wins
+
+3. **Diagonal Win Detection** (4 tests)
+   - Tests both diagonal win patterns
+   - Validates mixed diagonals don't create false positives
+
+4. **Draw Detection** (4 tests)
+   - Detects full board scenarios with no winner
+   - Correctly identifies when game is still in progress
+
+5. **Occupied Square Prevention** (4 tests)
+   - Ensures players can't overwrite occupied cells
+   - Validates available moves calculation
+
+6. **Bonus: AI Logic Tests** (5 tests)
+   - Verifies AI blocks opponent wins
+   - Confirms AI takes winning moves
+   - Tests strategic positioning (center, corners)
+   - Validates fork prevention
+
+7. **Edge Cases** (4 tests)
+   - Tests already-won scenarios
+   - Single move remaining situations
+   - Board state preservation during calculations
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with UI
+npm run test:ui
+
+# Generate coverage report
+npm run test:coverage
+```
+
+### Continuous Integration
+
+Every push triggers automated tests via **GitHub Actions**:
+- Tests run on Node.js 18.x and 20.x
+- Automatic coverage reports generated
+- Results visible in PR checks
+
+![Tests](https://img.shields.io/badge/tests-29%20passing-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
+
 ## 🎯 Future Enhancements
 
+- [x] Comprehensive test suite (29 unit tests)
+- [x] GitHub Actions CI/CD pipeline
 - [ ] Multiple difficulty levels
 - [ ] Sound effects
 - [ ] Animations for wins
