@@ -1,70 +1,20 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, FC } from "react";
+import { TicTacToeEngine, type Player, type Board, type GameResult, type Difficulty } from "@/lib/engine";
 
 // --- UTILITY FUNCTIONS ---
 // Helper for conditional class names, typically from a library like clsx
 const cn = (...classes: (string | boolean | undefined | null)[]) => classes.filter(Boolean).join(' ');
 
 // --- TYPE DEFINITIONS ---
-type Player = 'X' | 'O';
-type Board = (Player | null)[];
-type WinResult = Player | 'draw' | null;
-type Difficulty = 'easy' | 'medium' | 'hard';
+type WinResult = GameResult; // Alias for backward compatibility
 type GameMode = 'menu' | 'difficulty_select' | 'single_player' | 'two_player' | 'tournament';
 
 interface GameState {
   mode: GameMode;
   difficulty?: Difficulty;
 }
-
-// --- CORE GAME LOGIC ---
-const checkWinner = (board: Board): WinResult => {
-  const lines = [
-    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-    [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
-    [0, 4, 8], [2, 4, 6]             // diagonals
-  ];
-  for (const line of lines) {
-    const [a, b, c] = line;
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return board[a];
-    }
-  }
-  if (board.every(cell => cell)) return 'draw';
-  return null;
-};
-
-const getAIMove = (board: Board, difficulty: Difficulty): number => {
-  const availableMoves = board.map((cell, i) => cell === null ? i : null).filter(i => i !== null) as number[];
-  if (availableMoves.length === 0) return -1;
-
-  if (difficulty === 'hard' || difficulty === 'medium') {
-    // AI win check ('O')
-    for (const move of availableMoves) {
-      const tempBoard = [...board];
-      tempBoard[move] = 'O';
-      if (checkWinner(tempBoard) === 'O') return move;
-    }
-    // Player block check ('X')
-    for (const move of availableMoves) {
-      const tempBoard = [...board];
-      tempBoard[move] = 'X';
-      if (checkWinner(tempBoard) === 'X') return move;
-    }
-  }
-
-  if (difficulty === 'medium') {
-    return availableMoves[Math.floor(Math.random() * availableMoves.length)];
-  }
-
-  if (difficulty === 'easy') {
-    return availableMoves[Math.floor(Math.random() * availableMoves.length)];
-  }
-
-  if (availableMoves.includes(4)) return 4;
-  return availableMoves[Math.floor(Math.random() * availableMoves.length)];
-};
 
 // --- SHARED UI COMPONENTS ---
 const Button: FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'destructive' | 'outline' }> = ({ className, children, ...props }) => (
@@ -118,28 +68,32 @@ const DifficultySelect: FC<{ onSelect: (difficulty: Difficulty) => void; onBack:
     <h2 className="text-3xl font-bold mb-6 text-gray-800">Select Difficulty</h2>
     <Button onClick={() => onSelect('easy')}>Easy</Button>
     <Button onClick={() => onSelect('medium')}>Medium</Button>
-    <Button onClick={() => onSelect('hard')}>Hard</Button>
+    <Button onClick={() => onSelect('hard')}>Hard (Unbeatable)</Button>
     <Button onClick={onBack} variant="outline">Back to Menu</Button>
   </div>
 );
 
 // --- GAME MODE COMPONENTS ---
 const SinglePlayerGame: FC<{ onBack: () => void; difficulty: Difficulty }> = ({ onBack, difficulty }) => {
-  const [board, setBoard] = useState<Board>(Array(9).fill(null));
+  const [engine] = useState(() => new TicTacToeEngine('X'));
+  const [board, setBoard] = useState<Board>(engine.getBoard());
   const [player, setPlayer] = useState<Player>('X');
   const [winner, setWinner] = useState<WinResult>(null);
   const [statusMessage, setStatusMessage] = useState("Your turn (X)");
 
   const handleMove = useCallback((index: number) => {
-    if (board[index] || winner || player !== 'X') return;
-    const newBoard = [...board];
-    newBoard[index] = 'X';
-    setBoard(newBoard);
+    if (winner || player !== 'X') return;
+    
+    // Make move through engine
+    const success = engine.makeMove(index, 'X');
+    if (!success) return;
+    
+    setBoard(engine.getBoard());
     setPlayer('O');
-  }, [board, winner, player]);
+  }, [engine, winner, player]);
 
   useEffect(() => {
-    const result = checkWinner(board);
+    const result = engine.checkWinner();
     if (result) {
       setWinner(result);
       setStatusMessage(result === 'draw' ? "It's a draw!" : `Player ${result} wins!`);
@@ -150,18 +104,18 @@ const SinglePlayerGame: FC<{ onBack: () => void; difficulty: Difficulty }> = ({ 
     if (player === 'O' && !result) {
       setStatusMessage("AI's turn (O)");
       const timer = setTimeout(() => {
-        const aiMove = getAIMove(board, difficulty);
+        // Get AI move through engine
+        const aiMove = engine.getAIMove(difficulty, 'O');
         if (aiMove !== -1) {
-          const newBoard = [...board];
-          newBoard[aiMove] = 'O';
-          setBoard(newBoard);
+          engine.makeMove(aiMove, 'O');
+          setBoard(engine.getBoard());
           setPlayer('X');
           setStatusMessage("Your turn (X)");
         }
       }, 700);
       return () => clearTimeout(timer);
     }
-  }, [board, player, difficulty, onBack]);
+  }, [board, player, difficulty, onBack, engine]);
 
   return (
     <div className="flex flex-col items-center space-y-6">
@@ -181,7 +135,8 @@ const TwoPlayerGame: FC<{ onBack: () => void }> = ({ onBack }) => {
   const [playerNames, setPlayerNames] = useState({ X: '', O: '' });
   const [isNaming, setIsNaming] = useState(true);
 
-  const [board, setBoard] = useState<Board>(Array(9).fill(null));
+  const [engine] = useState(() => new TicTacToeEngine('X'));
+  const [board, setBoard] = useState<Board>(engine.getBoard());
   const [currentPlayer, setCurrentPlayer] = useState<Player>('X');
   const [roundStarter, setRoundStarter] = useState<Player>('X');
   const [scores, setScores] = useState({ X: 0, O: 0 });
@@ -195,12 +150,15 @@ const TwoPlayerGame: FC<{ onBack: () => void }> = ({ onBack }) => {
   }
 
   const handleMove = useCallback((index: number) => {
-    if (board[index] || roundWinner || matchWinner) return;
-    const newBoard = [...board];
-    newBoard[index] = currentPlayer;
-    setBoard(newBoard);
+    if (roundWinner || matchWinner) return;
+    
+    // Make move through engine
+    const success = engine.makeMove(index, currentPlayer);
+    if (!success) return;
+    
+    setBoard(engine.getBoard());
 
-    const result = checkWinner(newBoard);
+    const result = engine.checkWinner();
     if (result) {
       setRoundWinner(result);
       let currentMatchWinner = matchWinner;
@@ -225,9 +183,11 @@ const TwoPlayerGame: FC<{ onBack: () => void }> = ({ onBack }) => {
 
       setTimeout(() => {
         if (!currentMatchWinner && newGamesPlayed < 5) {
-          setBoard(Array(9).fill(null));
+          engine.reset();
+          setBoard(engine.getBoard());
           setRoundWinner(null);
           const nextStarter = roundStarter === 'X' ? 'O' : 'X';
+          engine.reset(nextStarter);
           setCurrentPlayer(nextStarter);
           setRoundStarter(nextStarter);
         }
@@ -235,7 +195,7 @@ const TwoPlayerGame: FC<{ onBack: () => void }> = ({ onBack }) => {
     } else {
       setCurrentPlayer(p => p === 'X' ? 'O' : 'X');
     }
-  }, [board, currentPlayer, roundWinner, scores, gamesPlayed, matchWinner, roundStarter]);
+  }, [engine, currentPlayer, roundWinner, scores, gamesPlayed, matchWinner, roundStarter]);
 
   const statusMessage = () => {
     if (matchWinner) return `${playerNames[matchWinner]} wins the match!`;
@@ -277,7 +237,8 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
   const [matchIndex, setMatchIndex] = useState(0);
   const [nextRoundPlayers, setNextRoundPlayers] = useState<string[]>([]);
 
-  const [board, setBoard] = useState<Board>(Array(9).fill(null));
+  const [engine] = useState(() => new TicTacToeEngine('X'));
+  const [board, setBoard] = useState<Board>(engine.getBoard());
   const [currentPlayer, setCurrentPlayer] = useState<Player>('X');
   const [statusMessage, setStatusMessage] = useState("");
 
@@ -309,9 +270,10 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
       setMatchIndex(m => m + 1);
     }
 
-    setBoard(Array(9).fill(null));
+    engine.reset('X');
+    setBoard(engine.getBoard());
     setCurrentPlayer('X');
-  }, [players.length, nextRoundPlayers]);
+  }, [engine, players.length, nextRoundPlayers]);
 
   useEffect(() => {
     if (players.length === 0 || tournamentWinner || isHumanEliminated) return;
@@ -321,15 +283,15 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
     const isHumanInMatch = player1 === 'Human' || player2 === 'Human';
     const difficulty = difficultyByRound[round - 1];
 
-    const result = checkWinner(board);
+    const result = engine.checkWinner();
     if (result) {
-      // FIX: Added rematch logic for draws in tournament
       if (result === 'draw') {
         setStatusMessage("Draw! Rematching...");
         setTimeout(() => {
-          setBoard(Array(9).fill(null));
+          engine.reset('X');
+          setBoard(engine.getBoard());
           setCurrentPlayer('X');
-          setIsRematch(true); // Triggers re-render to clear message
+          setIsRematch(true);
         }, 1500);
         return;
       }
@@ -352,28 +314,26 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
       setStatusMessage(currentPlayer === humanPlayer ? "Your Turn" : "AI's Turn");
       if (currentPlayer !== humanPlayer) {
         const timer = setTimeout(() => {
-          const aiMove = getAIMove(board, difficulty);
+          const aiMove = engine.getAIMove(difficulty, currentPlayer);
           if (aiMove !== -1) {
-            const newBoard = [...board];
-            newBoard[aiMove] = currentPlayer;
-            setBoard(newBoard);
+            engine.makeMove(aiMove, currentPlayer);
+            setBoard(engine.getBoard());
             setCurrentPlayer(humanPlayer);
           }
         }, 700);
         return () => clearTimeout(timer);
       }
     } else {
-      // FIX: Simplified AI vs AI simulation to prevent infinite loops
       setStatusMessage(`Simulating: ${player1} vs ${player2}`);
       const timer = setTimeout(() => {
-        let simBoard: Board = Array(9).fill(null);
+        const simEngine = new TicTacToeEngine('X');
         let simPlayer: Player = 'X';
         let winner: WinResult = null;
         while (winner === null) {
-          const move = getAIMove(simBoard, simPlayer === 'X' ? difficulty : difficulty);
+          const move = simEngine.getAIMove(difficulty, simPlayer);
           if (move === -1) { winner = 'draw'; break; }
-          simBoard[move] = simPlayer;
-          winner = checkWinner(simBoard);
+          simEngine.makeMove(move, simPlayer);
+          winner = simEngine.checkWinner();
           simPlayer = simPlayer === 'X' ? 'O' : 'X';
         }
         const winnerName = winner === 'draw' ? player1 : (winner === 'X' ? player1 : player2);
@@ -381,15 +341,17 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [board, players, matchIndex, round, tournamentWinner, advanceToNextMatch, currentPlayer, isHumanEliminated]);
+  }, [board, players, matchIndex, round, tournamentWinner, advanceToNextMatch, currentPlayer, isHumanEliminated, engine]);
 
   const handleHumanMove = (index: number) => {
     const humanIsX = players[matchIndex * 2] === 'Human';
     const humanPlayer = humanIsX ? 'X' : 'O';
-    if (board[index] || checkWinner(board) || currentPlayer !== humanPlayer) return;
-    const newBoard = [...board];
-    newBoard[index] = currentPlayer;
-    setBoard(newBoard);
+    if (engine.checkWinner() || currentPlayer !== humanPlayer) return;
+    
+    const success = engine.makeMove(index, currentPlayer);
+    if (!success) return;
+    
+    setBoard(engine.getBoard());
     setCurrentPlayer(humanPlayer === 'X' ? 'O' : 'X');
   };
 
@@ -427,7 +389,7 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
       {isHumanInMatch ? (
         <div className="grid grid-cols-3 gap-2">
           {board.map((cell, i) => (
-            <Cell key={i} value={cell} onClick={() => handleHumanMove(i)} disabled={!!cell || !!checkWinner(board)} />
+            <Cell key={i} value={cell} onClick={() => handleHumanMove(i)} disabled={!!cell || !!engine.checkWinner()} />
           ))}
         </div>
       ) : <div className="h-80 flex items-center justify-center"><p>Simulating...</p></div>}
@@ -436,7 +398,6 @@ const TournamentGame: FC<{ onBack: () => void }> = ({ onBack }) => {
 };
 
 // --- MAIN COMPONENT ---
-// FIX: Restructured component to remove duplicate exports and state
 export default function TicTacToe() {
   const [gameState, setGameState] = useState<GameState>({ mode: 'menu' });
 
@@ -471,4 +432,3 @@ export default function TicTacToe() {
     </main>
   );
 }
-
