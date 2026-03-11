@@ -6,6 +6,15 @@
   .text-balance {
     text-wrap: balance;
   }
+  
+  /* Custom glassmorphism utilities */
+  .glass {
+    @apply bg-white/70 dark:bg-gray-900/70 backdrop-blur-xl border border-white/20 dark:border-gray-700/20;
+  }
+  
+  .glass-button {
+    @apply bg-white/50 dark:bg-gray-800/50 backdrop-blur-md hover:bg-white/70 dark:hover:bg-gray-800/70;
+  }
 }
 
 @layer base {

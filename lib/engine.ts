@@ -90,6 +90,14 @@ export class TicTacToeEngine {
   }
 
   /**
+   * Get the winning line indices if there is a winner
+   * @returns array of winning indices or null
+   */
+  getWinningLine(): number[] | null {
+    return TicTacToeEngine.getWinningLineStatic(this.board);
+  }
+
+  /**
    * Get all available (empty) positions
    */
   getAvailableMoves(): number[] {
@@ -165,6 +173,26 @@ export class TicTacToeEngine {
     }
 
     // Game ongoing
+    return null;
+  }
+
+  /**
+   * Get winning line on any board (static utility)
+   */
+  static getWinningLineStatic(board: Board): number[] | null {
+    const winningLines = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+      [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+      [0, 4, 8], [2, 4, 6]             // Diagonals
+    ];
+
+    // Check for winning line
+    for (const [a, b, c] of winningLines) {
+      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+        return [a, b, c];
+      }
+    }
+
     return null;
   }
 
